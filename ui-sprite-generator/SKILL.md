@@ -16,6 +16,7 @@ Create or reuse a run directory in the caller's current workspace:
 ```text
 ui-sprite-runs/YYYY-MM-DD-slug/
   input/effect.png
+  .env
   spec.json
   background_plate.png
   atlas/*.png
@@ -82,13 +83,33 @@ python scripts/ui_slice.py \
 
 ## External Image Generation Fallback
 
-Use this only when the current environment has no available image generation service for the mandatory background plate or UI atlas steps. Ask the user before calling any external service.
+Use this only when the current environment has no available image generation service for the mandatory background plate or UI atlas steps. Phase 2 and Phase 3 are mandatory generation steps; local image processing may prepare masks, prompts, or validation, but it must not replace image generation.
 
-Before continuing, request the image API base URL, model or endpoint shape, and API key delivery method. Explain that the token and uploaded effect image will be exposed to the tool execution environment and the configured image service. Recommend a temporary, low-scope, revocable API key.
+Ask the user before calling any external service. Before continuing, request the image API base URL, model or endpoint shape, and API key delivery method. Explain that the token and uploaded effect image will be exposed to the tool execution environment and the configured image service. Recommend a temporary, low-scope, revocable API key.
 
-Prefer passing the API key through an environment variable. Never write the token to the repo, run directory, prompt files, generated HTML, logs, schemas, or screenshots. Do not echo authorization headers. If the request fails, report only the status code and error category.
+Create a run-local .env from `config/image-api.env.example` and prompt the user to edit that file. The .env file is the preferred environment variable source for `scripts/openai_image.py`. This avoids pasting API keys into prompts and avoids visible shell commands with tokens. Do not paste API keys into prompts, generated scripts, command arguments, logs, schemas, screenshots, or HTML. Do not commit run-local `.env` files.
 
-Use `xh` or `curl` only after the user has confirmed the service and upload scope. Save generated images into the invocation run directory. Large images should be referenced by path by default; show an inline image only for useful review, and prefer a downsampled thumbnail over embedding full-size output in the conversation.
+Use `scripts/openai_image.py` for OpenAI-compatible image generation or edit endpoints. The script reads `IMAGE_API_BASE_URL`, `IMAGE_API_KEY`, `IMAGE_API_MODEL`, `IMAGE_API_SIZE`, `IMAGE_API_QUALITY`, `IMAGE_API_RESPONSE_FORMAT`, and `IMAGE_API_TIMEOUT` from the environment or run-local `.env`; it also accepts non-secret `--base-url` overrides, but it does not accept an API key argument. It handles JSON `/images/generations`, multipart `/images/edits`, repeated `--input-image` fields, timeout, HTTP response status errors, JSON response parsing, `b64_json` output, image URL output, and output file creation.
+
+Example:
+
+```bash
+cp .agents/skills/ui-sprite-generator/config/image-api.env.example ui-sprite-runs/YYYY-MM-DD-slug/.env
+python .agents/skills/ui-sprite-generator/scripts/openai_image.py \
+  --env-file ui-sprite-runs/YYYY-MM-DD-slug/.env \
+  --prompt-file ui-sprite-runs/YYYY-MM-DD-slug/prompts/background_plate.txt \
+  --mode edits \
+  --input-image ui-sprite-runs/YYYY-MM-DD-slug/input/effect.png \
+  --output ui-sprite-runs/YYYY-MM-DD-slug/background_plate.png
+```
+
+For a pure text-to-image generation endpoint, omit `--input-image` and use `--mode generations` or `--mode auto` with a `/images/generations` base URL. For an edit endpoint, use `--mode edits` and pass each source/reference/mask image with a separate `--input-image`; the helper sends repeated multipart `image` fields.
+
+After the user confirms an external image API, do not substitute local Pillow, OpenCV, screenshot crop, mask-fill, or segmentation-only output for Phase 2 or Phase 3. You must either call the confirmed external image API through `scripts/openai_image.py` or stop and ask the user to finish `.env` configuration. Do not continue with local segmentation as a replacement for generation.
+
+If a user pasted an API key directly into chat, do not reuse it in a visible shell command. State the exposure risk, recommend rotating it, then ask the user to place the replacement key in the run-local `.env` file. If an image request fails, report only the timeout, response status, or error category; never echo authorization headers.
+
+Save generated images into the invocation run directory. Large images should be referenced by path by default; show an inline image only for useful review, and prefer a downsampled thumbnail over embedding full-size output in the conversation.
 
 ## Common Mistakes
 
@@ -99,3 +120,4 @@ Use `xh` or `curl` only after the user has confirmed the service and upload scop
 | Making Phase 4 a general JS runtime | Generate static HTML for Playwright; JS is a last-resort patch |
 | Letting the slicer fix coordinates | Fix `atlas_map.json`; the slicer should fail on bad bboxes |
 | Debugging atlas crops in the slicer | Use final HTML `?debug=1` overlay for render/debug inspection |
+| Replacing Phase 2 or Phase 3 with local segmentation | Stop and call `scripts/openai_image.py`, or ask the user to finish run-local `.env` configuration |
