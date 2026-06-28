@@ -85,6 +85,8 @@ python scripts/ui_slice.py \
 
 Use this only when the current environment has no available image generation service for the mandatory background plate or UI atlas steps. Phase 2 and Phase 3 are mandatory generation steps; local image processing may prepare masks, prompts, or validation, but it must not replace image generation.
 
+Do not take a token-saving shortcut. "Usable result", "fast delivery", "no built-in image tool", or "preserve original style" is not a reason to replace generation with deterministic component slicing. Absolute-positioned HTML reconstruction from crops is an invalid substitute for this workflow: it produces dirty rectangular cutouts, mixed background pixels, clipped decoration, and fixed ugly corners on complex UI deco.
+
 Ask the user before calling any external service. Before continuing, request the image API base URL, model or endpoint shape, and API key delivery method. Explain that the token and uploaded effect image will be exposed to the tool execution environment and the configured image service. Recommend a temporary, low-scope, revocable API key.
 
 Create a run-local .env from `config/image-api.env.example` and prompt the user to edit that file. The .env file is the preferred environment variable source for `scripts/openai_image.py`. This avoids pasting API keys into prompts and avoids visible shell commands with tokens. Do not paste API keys into prompts, generated scripts, command arguments, logs, schemas, screenshots, or HTML. Do not commit run-local `.env` files.
@@ -107,6 +109,8 @@ For a pure text-to-image generation endpoint, omit `--input-image` and use `--mo
 
 After the user confirms an external image API, do not substitute local Pillow, OpenCV, screenshot crop, mask-fill, or segmentation-only output for Phase 2 or Phase 3. You must either call the confirmed external image API through `scripts/openai_image.py` or stop and ask the user to finish `.env` configuration. Do not continue with local segmentation as a replacement for generation.
 
+Local crops are analysis reference only: bbox review, mask preparation, prompt references, contact sheets, or debug overlays. They are not formal atlas art, not a completed background plate, and not acceptable inputs to the final slicer except as non-output references for image generation.
+
 If a user pasted an API key directly into chat, do not reuse it in a visible shell command. State the exposure risk, recommend rotating it, then ask the user to place the replacement key in the run-local `.env` file. If an image request fails, report only the timeout, response status, or error category; never echo authorization headers.
 
 Save generated images into the invocation run directory. Large images should be referenced by path by default; show an inline image only for useful review, and prefer a downsampled thumbnail over embedding full-size output in the conversation.
@@ -121,3 +125,4 @@ Save generated images into the invocation run directory. Large images should be 
 | Letting the slicer fix coordinates | Fix `atlas_map.json`; the slicer should fail on bad bboxes |
 | Debugging atlas crops in the slicer | Use final HTML `?debug=1` overlay for render/debug inspection |
 | Replacing Phase 2 or Phase 3 with local segmentation | Stop and call `scripts/openai_image.py`, or ask the user to finish run-local `.env` configuration |
+| Shipping deterministic component slicing as a "usable result" | Treat it as invalid; crops are analysis reference only, not formal atlas art |

@@ -49,6 +49,40 @@ class SkillDocTests(unittest.TestCase):
         self.assertIn("image_api_quality", content)
         self.assertIn("image_api_response_format", content)
 
+    def test_skill_rejects_token_saving_crop_rationalizations(self):
+        content = (ROOT / "ui-sprite-generator" / "SKILL.md").read_text(encoding="utf-8").lower()
+
+        self.assertIn("token-saving shortcut", content)
+        self.assertIn("usable result", content)
+        self.assertIn("deterministic component slicing", content)
+        self.assertIn("absolute-positioned html reconstruction from crops", content)
+        self.assertIn("analysis reference only", content)
+        self.assertIn("not formal atlas art", content)
+
+    def test_background_prompt_forbids_whole_image_background_plate_shortcut(self):
+        content = (ROOT / "ui-sprite-generator" / "prompts" / "02_generate_background_plate.md").read_text(
+            encoding="utf-8"
+        ).lower()
+
+        self.assertIn("do not use the whole effect image as the background plate", content)
+        self.assertIn("do not preserve foreground ui chrome", content)
+        self.assertIn("remove foreground ui first", content)
+        self.assertIn("inpaint or regenerate", content)
+        self.assertIn("stop and ask for an image-generation service", content)
+
+    def test_atlas_prompt_rejects_rectangular_cutout_assets(self):
+        content = (ROOT / "ui-sprite-generator" / "prompts" / "03_generate_ui_atlas.md").read_text(
+            encoding="utf-8"
+        ).lower()
+
+        self.assertIn("token-saving shortcut", content)
+        self.assertIn("deterministic slicing", content)
+        self.assertIn("absolute-positioned html reconstruction from crops", content)
+        self.assertIn("dirty rectangular cutout", content)
+        self.assertIn("source background pixels visible", content)
+        self.assertIn("clipped ornament", content)
+        self.assertIn("regenerate the sprite", content)
+
 
 if __name__ == "__main__":
     unittest.main()

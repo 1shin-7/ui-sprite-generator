@@ -13,6 +13,7 @@ The attached effect image is the source style reference. Match its material, col
 
 - Do not crop rectangular regions from the source effect image and call them sprites.
 - Do not use Pillow, canvas crop, screenshot crop, or any non-generative fallback to create atlas art.
+- Do not take a token-saving shortcut such as deterministic slicing, "cut reusable UI blocks", or absolute-positioned HTML reconstruction from crops.
 - Each atlas entry must be a newly redrawn isolated sprite that preserves the source UI style.
 - Complex UI is not rectangular cutting: border decoration, corner ornaments, bevels, drop shadows, glows, transparent holes, and rich material texture must be reconstructed around the component's actual shape.
 - The source `source_bbox` is only a size and placement reference. It is not permission to cut that rectangle out of the effect image.
@@ -23,6 +24,8 @@ The attached effect image is the source style reference. Match its material, col
 - Use transparent backgrounds for formal atlas files.
 - Do not draw id labels, bbox labels, or cell labels into formal atlas files.
 - You may produce separate debug/contact sheets for human viewing, but Phase 3 must use only formal atlas files.
+- A formal sprite must follow the actual silhouette of the UI element, including protruding ornaments, soft glow, bevel shadow, and transparent cutouts. A dirty rectangular cutout is failed output.
+- If source background pixels visible around a sprite edge, clipped ornament, copied text/icon fragments, neighboring UI fragments, or hard rectangular corners appear in the atlas, regenerate the sprite.
 - Prefer `1536x1024` or `1024x1536` when suitable, but custom canvas sizes and orientations are allowed.
 - Do not reduce sprite resolution to fit a canvas.
 - Preserve at least the source component resolution. Use the component's `resolution_policy.target_px`.

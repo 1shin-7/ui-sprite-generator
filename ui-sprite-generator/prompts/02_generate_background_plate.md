@@ -11,6 +11,11 @@ Create a complete background plate for the full source canvas.
 - Preserve visible background regions from the effect image wherever possible.
 - Restore UI-occluded regions using inpainting or generation guided by `spec.background.occluded_regions`.
 - Do not include UI chrome components, text, icons, slots, bars, panels, buttons, or other foreground UI sprites.
+- Do not use the whole effect image as the background plate.
+- Do not preserve foreground UI chrome and plan to cover it later with sprites.
+- Remove foreground UI first, then inpaint or regenerate every occluded background region so the plate is a clean bottom layer.
+- Cropped source rectangles, deterministic masks, or local fills may be used only as references for the generation request; they are not the output.
+- If no available tool can remove UI and infer the hidden background, stop and ask for an image-generation service instead of creating a fake background plate.
 - The result should work as the bottom layer in a static Playwright screenshot reconstruction.
 
 ## Output
