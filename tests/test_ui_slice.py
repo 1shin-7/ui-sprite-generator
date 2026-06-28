@@ -106,6 +106,70 @@ class UiSliceTests(unittest.TestCase):
             self.assertEqual(output.getpixel((0, 0))[3], 0)
             self.assertEqual(output.getpixel((5, 5)), (255, 255, 255, 255))
 
+    def test_solid_key_spritesheet_background_can_be_removed_without_label_in_crop(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            atlas = work / "spritesheet.png"
+            image = Image.new("RGBA", (80, 60), (224, 224, 224, 255))
+            pixels = image.load()
+            for y in range(20, 44):
+                for x in range(10, 50):
+                    pixels[x, y] = (60, 60, 60, 255)
+            for x in range(20, 40):
+                pixels[x, 10] = (120, 120, 120, 255)
+            image.save(atlas)
+
+            atlas_map = work / "atlas_map.json"
+            atlas_map.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "1.0",
+                        "root_size": {"w": 800, "h": 600},
+                        "atlases": [{"id": "sheet", "file": str(atlas)}],
+                        "sprites": [
+                            {
+                                "id": "button",
+                                "atlas": "sheet",
+                                "filename": "button.png",
+                                "bbox": {"x": 8, "y": 18, "w": 44, "h": 28},
+                                "display_size": {"w": 22, "h": 14},
+                                "source_bbox": {"x": 100, "y": 100, "w": 22, "h": 14},
+                                "z_index": 1,
+                                "render_pattern": "background_image",
+                                "render_params": {},
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "--map",
+                    str(atlas_map),
+                    "--out",
+                    str(work / "sprites"),
+                    "--bg-policy",
+                    "transparentize-border",
+                    "--bg-color",
+                    "#e0e0e0",
+                    "--bg-tolerance",
+                    "0",
+                ],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            output = Image.open(work / "sprites" / "button.png").convert("RGBA")
+            self.assertEqual(output.getpixel((0, 0))[3], 0)
+            self.assertEqual(output.getpixel((12, 12)), (60, 60, 60, 255))
+            colors = [output.getpixel((x, y)) for y in range(output.height) for x in range(output.width)]
+            self.assertNotIn((120, 120, 120, 255), colors)
+
 
 if __name__ == "__main__":
     unittest.main()

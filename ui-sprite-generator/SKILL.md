@@ -18,7 +18,7 @@ ui-sprite-runs/YYYY-MM-DD-slug/
   input/effect.png
   spec.json
   background_plate.png
-  atlas/*.png
+  spritesheet/*.png
   atlas_map.json
   sprites/*.png
   html/index.html
@@ -34,24 +34,27 @@ Do not ask the user to edit a non-existent .env path. If credentials are needed 
 ## Workflow
 
 1. **Extract spec** with `prompts/01_extract_spec.md`.
-   Output `spec.json`. This is the only semantic contract: source canvas, global style, background occlusion, components, source bboxes, resolution policy, atlas policy, layering, and render patterns.
+   Output draft `spec.json`. This is the only semantic contract: source canvas, UI style, background style, background occlusion, components, source bboxes, surface policy, occlusion reconstruction, resolution policy, atlas policy, layering, and render patterns.
 
-2. **Generate background plate** with `prompts/02_generate_background_plate.md`.
+2. **Verify spec** with `prompts/02_verify_spec.md`.
+   Output corrected `spec.json`. This step is mandatory because VLMs may avoid overlapping bboxes, miss companion fill sprites, or fail to reconstruct partially occluded components.
+
+3. **Generate background plate** with `prompts/02_generate_background_plate.md`.
    Output `background_plate.png`. This step is mandatory. Preserve visible background regions and infer UI-occluded regions by inpainting or generation. The final background plate must match the source canvas dimensions, but the image API generation size may be a larger standard size selected at runtime. Use `scripts/openai_image.py --size auto --purpose background --spec ui-sprite-runs/YYYY-MM-DD-slug/spec.json --normalize-background-to-source` when the provider supports standard sizes better than the exact source size. Do not create a stable background report JSON or image size plan JSON.
 
-3. **Generate UI atlases** with `prompts/03_generate_ui_atlas.md`.
-   First generate the formal Markdown prompt artifact with `scripts/build_atlas_prompt.py --spec ui-sprite-runs/YYYY-MM-DD-slug/spec.json --output ui-sprite-runs/YYYY-MM-DD-slug/prompts/ui_atlas.md`. Do not handwrite `ui_atlas.md`, do not summarize the canonical prompt, and do not replace it with a shorter natural-language prompt. Then pass that Markdown file to the image generation helper. Output one or more game-ready atlas PNGs under `atlas/`. Use `scripts/openai_image.py --size auto --purpose atlas --spec ui-sprite-runs/YYYY-MM-DD-slug/spec.json` when no explicit provider size is needed. Atlas canvas size is a generation preference, not the source image dimensions. Each sprite must reach at least its source component resolution; default generation scale is 2x, with 3x for complex materials when practical. Do not downscale sprites to improve packing.
+4. **Generate labeled spritesheets** with `prompts/03_generate_spritesheet.md`.
+   First generate the formal Markdown prompt artifact with `scripts/build_spritesheet_prompt.py --spec ui-sprite-runs/YYYY-MM-DD-slug/spec.json --output ui-sprite-runs/YYYY-MM-DD-slug/prompts/spritesheet.md`. Do not handwrite `spritesheet.md`, do not summarize the canonical prompt, and do not replace it with a shorter natural-language prompt. Then pass that Markdown file to the image generation helper. Output one or more labeled spritesheet PNGs under `spritesheet/`. The default is a labeled spritesheet in `solid-key` mode, not a direct formal atlas. Direct formal atlas generation is an advanced mode only after this default pipeline is proven inadequate for a specific provider.
 
-4. **Verify UI atlases** with `prompts/04_verify_ui_atlas.md`.
-   Check each generated atlas before mapping. If QA reports missing components, wrong center semantics, invented internal texture, missing decoration, source background pixels, clipped ornament, or flat bar fill, rebuild `ui_atlas.md` with `scripts/build_atlas_prompt.py --component-id <id>` or `--component-group <group>` and regenerate the failed subset.
+5. **Verify labeled spritesheets** with `prompts/04_verify_spritesheet.md`.
+   Check each generated spritesheet before mapping. If QA reports missing components, wrong center semantics, decoration missing, unwanted texture noise, flat fill pollution, occlusion contamination, a label inside the sprite crop, or flat bar fill, rebuild `spritesheet.md` with `scripts/build_spritesheet_prompt.py --component-id <id>` or `--component-group <group>` and regenerate the failed subset.
 
-5. **Extract atlas map** with `prompts/04_extract_atlas_map.md`.
-   Output `atlas_map.json`. This is the only coordinate contract: atlas files, sprite crop bboxes, output filenames, display sizes, z-index, and render-pattern parameters.
+6. **Extract atlas map** with `prompts/04_extract_atlas_map.md`.
+   Output `atlas_map.json`. This is the only coordinate contract: spritesheet files, sprite crop bboxes, output filenames, display sizes, z-index, and render-pattern parameters. External id labels must not be included in crop bboxes.
 
-6. **Slice sprites** with `scripts/ui_slice.py`.
+7. **Slice sprites** with `scripts/ui_slice.py`.
    The slicer is mechanical: it validates inputs, crops bboxes, optionally removes border-connected background, and writes `sprites/*.png`. It does not infer, confirm, correct, generate reports, or draw debug overlays.
 
-7. **Generate Playwright HTML** with `prompts/05_generate_playwright_html.md`.
+8. **Generate Playwright HTML** with `prompts/05_generate_playwright_html.md`.
    Output `html/index.html`. Use static Jinja-style HTML/CSS with `background_plate.png` behind absolutely positioned sprites. The page serves Playwright screenshots only. JavaScript is limited to `window.__UI_READY__ = true` and optional `?debug=1` overlay. If static rendering fails, ask before injecting temporary JS patches.
 
 ## Stable Contracts
@@ -63,7 +66,15 @@ Keep only two stable JSON files:
 | `spec.json` | Semantic UI, background, component, resolution, atlas, and rendering intent |
 | `atlas_map.json` | Atlas file and crop coordinates, sliced filename, display size, z-index, and render parameters |
 
-Do not promote `sheet_plan.json`, `background_report.json`, `slice_report.json`, `render_report.json`, or any generated image-size plan into stable contracts. Runtime image size selection belongs in `scripts/openai_image.py` arguments and stdout, not in another JSON artifact.
+Do not promote `sheet_plan.json`, `background_report.json`, `slice_report.json`, `render_report.json`, or any generated image-size plan into stable contracts. Runtime image size and spritesheet packing decisions belong in helper arguments, generated prompts, and stdout, not in another stable JSON artifact.
+
+## Labeled Spritesheet Default
+
+Default Phase 4 uses `scripts/build_spritesheet_prompt.py` to generate an observable labeled spritesheet prompt. The generated image may use `solid-key` mode with `#e0e0e0` or `transparent` mode when the provider reliably supports alpha. In both modes, component ids are external labels used for map extraction. Labels must remain outside sprite crop bboxes.
+
+`debug_bbox.png`, when produced by a slicer or downstream debug tool, is only a visualization of an existing coordinate map for human review. It is not the source of automatic sprite recognition.
+
+Treat scripts as stable command-line helpers during normal execution. Prefer SKILL.md examples and `--help`; read script source only when changing the helper, debugging unexpected behavior, or validating security-sensitive behavior.
 
 ## Slicer
 
@@ -139,9 +150,11 @@ Save generated images into the invocation run directory. Large images should be 
 | --- | --- |
 | Writing generated files beside `SKILL.md` | Put them in the invocation run directory |
 | Treating fixed atlas sizes as hard limits | Preserve sprite resolution and split atlases instead |
+| Using direct formal atlas as the default | Use labeled spritesheets first; formal atlas is advanced mode |
 | Making Phase 4 a general JS runtime | Generate static HTML for Playwright; JS is a last-resort patch |
 | Letting the slicer fix coordinates | Fix `atlas_map.json`; the slicer should fail on bad bboxes |
 | Debugging atlas crops in the slicer | Use final HTML `?debug=1` overlay for render/debug inspection |
 | Replacing Phase 2 or Phase 3 with local segmentation | Stop and call `scripts/openai_image.py`, or ask the user to finish `ui-sprite-runs/.env` configuration |
 | Shipping deterministic component slicing as a "usable result" | Treat it as invalid; crops are analysis reference only, not formal atlas art |
 | Handwriting a short atlas prompt | Use `scripts/build_atlas_prompt.py` to generate `ui_atlas.md` |
+| Handwriting a short spritesheet prompt | Use `scripts/build_spritesheet_prompt.py` to generate `spritesheet.md` |

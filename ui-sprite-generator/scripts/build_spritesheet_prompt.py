@@ -1,0 +1,258 @@
+#!/usr/bin/env python3
+"""Build the canonical Markdown prompt for labeled UI spritesheet generation."""
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+
+class PromptBuildError(Exception):
+    pass
+
+
+CANONICAL_PROMPT = """# UI Spritesheet Generation Prompt
+
+You are a game UI sprite sheet artist. Generate a clean, observable UI spritesheet from the components in `spec.json`.
+
+## Visual Reference
+
+The attached effect image is the SOURCE MOCKUP. Match its UI material, color tone, border thickness, trim, ornament vocabulary, bevels, glow, transparency, and texture detail. Use only the UI style from the selected component contract below. Do not copy background scenery, characters, text, or unrelated screenshot content into sprite surfaces.
+
+## Redraw Contract
+
+- Do not crop rectangular regions from the source effect image and call them sprites.
+- Each spritesheet entry must be a newly redrawn isolated UI sprite that preserves the source UI style.
+- Do not use Pillow, canvas crop, screenshot crop, or deterministic slicing to create the spritesheet art.
+- Do not rewrite this prompt into a shorter prompt.
+- Do not summarize, omit, compress, or reinterpret the rules below.
+
+## Spritesheet Rules
+
+- Arrange selected components in a loose grid with comfortable gutters.
+- Print each component id in small neutral gray text outside and above its sprite.
+- The external label must not overlap, touch, or be inside the sprite crop area.
+- Do not draw text, numbers, bbox labels, or ids inside any sprite.
+- Hollow or transparent centers must remain empty: no interior content, no illustrative fill, no material fill, and no decorative texture unless the component data explicitly says that center content exists.
+- Style words affect only allowed component surfaces: border, trim, bevel, ornament, glow, material, and declared filled regions.
+- A `flat_fill` component must stay clean and flat. Do not add painterly texture, random lines, grit, noise, brush strokes, invented symbols, or mottled shading.
+- A `textured_fill` component may use the source material texture described in the UI style.
+- A `bar_fill_texture` component must be a full-width 100% fill texture with rich texture, glow, or pattern; a flat color is not acceptable.
+- For `occlusion.status = partially_occluded`, redraw a complete unobstructed sprite. Do not include the text, badge, floating overlay, neighboring sprite, or source pixels that cover it in the mockup.
+- Preserve all declared attached decorations and protruding silhouettes.
+- Keep enough bleed around antialiasing, shadows, glows, and ornaments.
+- Do not rotate components.
+- Split into multiple spritesheets when needed. Do not prioritize fitting one canvas over clarity or target resolution.
+
+## Output Naming
+
+Save the generated image as a spritesheet file such as:
+
+```text
+spritesheet/spritesheet_buttons_01.png
+spritesheet/spritesheet_panels_01.png
+```
+"""
+
+
+def load_spec(path):
+    try:
+        return json.loads(Path(path).read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise PromptBuildError(f"spec file not found: {path}") from exc
+    except json.JSONDecodeError as exc:
+        raise PromptBuildError(f"spec file is not valid JSON: {path}") from exc
+
+
+def parse_size(size):
+    try:
+        width_text, height_text = size.lower().split("x", 1)
+        width = int(width_text)
+        height = int(height_text)
+    except (AttributeError, ValueError) as exc:
+        raise PromptBuildError(f"invalid canvas size: {size}") from exc
+    if width <= 0 or height <= 0:
+        raise PromptBuildError(f"invalid canvas size: {size}")
+    return width, height
+
+
+def select_components(spec, component_group=None, component_ids=None):
+    components = list(spec.get("components", []))
+    if component_group:
+        components = [
+            component
+            for component in components
+            if component.get("atlas_policy", {}).get("group") == component_group
+        ]
+    if component_ids:
+        wanted = set(component_ids)
+        components = [component for component in components if component.get("id") in wanted]
+    if not components:
+        raise PromptBuildError("no components selected for spritesheet prompt")
+    return components
+
+
+def target_px(component):
+    target = component["resolution_policy"]["target_px"]
+    return int(target["w"]), int(target["h"])
+
+
+def target_area(components):
+    return sum(width * height for width, height in (target_px(component) for component in components))
+
+
+def enforce_fill_ratio(components, canvas_size, max_fill_ratio):
+    canvas_width, canvas_height = parse_size(canvas_size)
+    area = target_area(components)
+    limit = canvas_width * canvas_height * max_fill_ratio
+    if area > limit:
+        raise PromptBuildError(
+            f"selected components target area {area} exceeds max fill ratio "
+            f"{max_fill_ratio:.2f} for canvas {canvas_size}; select a smaller group"
+        )
+
+
+def style_contract(spec):
+    style = spec.get("style", {})
+    return {
+        "description": style.get("description", ""),
+        "ui_style": style.get("ui_style", style.get("description", "")),
+        "palette": style.get("palette", []),
+        "materials": style.get("materials", []),
+        "lighting": style.get("lighting", ""),
+        "ornament_language": style.get("ornament_language", ""),
+        "negative_constraints": style.get("negative_constraints", []),
+    }
+
+
+def format_bbox(bbox):
+    return f"x={bbox['x']}, y={bbox['y']}, w={bbox['w']}, h={bbox['h']}"
+
+
+def format_target(component):
+    width, height = target_px(component)
+    return f"{width}x{height}"
+
+
+def background_contract(sheet_mode):
+    if sheet_mode == "transparent":
+        return "- Use a transparent RGBA canvas. Keep sprites separated and preserve alpha."
+    return "- Use a solid `#e0e0e0` canvas background. The key color is outside sprites and may be removed by the slicer."
+
+
+def component_contract_markdown(components):
+    lines = [
+        "## Selected Component Contract",
+        "",
+        "Use this contract mechanically. The id label is external; the sprite itself must contain only UI chrome.",
+        "",
+    ]
+    for index, component in enumerate(components, start=1):
+        occlusion = component.get("occlusion", {})
+        lines.extend(
+            [
+                f"### {index}. `{component['id']}`",
+                "",
+                f"- role: {component['role']}",
+                f"- source_bbox: {format_bbox(component['source_bbox'])}",
+                f"- visual_description: {component['visual_description']}",
+                f"- attached_decorations: {', '.join(component['attached_decorations']) or 'none'}",
+                f"- center: {component['center']}",
+                f"- surface_policy: {component.get('surface_policy', component['center'])}",
+                f"- occlusion_status: {occlusion.get('status', 'unoccluded')}",
+                f"- occlusion_reconstruction: {occlusion.get('reconstruction', 'redraw as visible')}",
+                f"- render_pattern: {component['render_pattern']}",
+                f"- target_px: {format_target(component)}",
+                f"- atlas_group: {component['atlas_policy']['group']}",
+                f"- minimum_gutter: {component['atlas_policy']['minimum_gutter']}",
+                f"- states: {', '.join(component['states']) or 'default'}",
+                f"- companions: {', '.join(component['companions']) or 'none'}",
+                "",
+            ]
+        )
+    return "\n".join(lines)
+
+
+def raw_json_markdown(style, components):
+    data = {"style": style, "components": components}
+    return "\n".join(
+        [
+            "## Raw Selected Spec JSON",
+            "",
+            "```json",
+            json.dumps(data, ensure_ascii=False, indent=2),
+            "```",
+            "",
+        ]
+    )
+
+
+def build_prompt(
+    spec,
+    sheet_mode="solid-key",
+    component_group=None,
+    component_ids=None,
+    canvas_size="1536x1024",
+    max_fill_ratio=0.65,
+    include_raw_json=True,
+):
+    components = select_components(spec, component_group=component_group, component_ids=component_ids)
+    enforce_fill_ratio(components, canvas_size, max_fill_ratio)
+    style = style_contract(spec)
+    sections = [
+        CANONICAL_PROMPT.rstrip(),
+        "",
+        "## Build Parameters",
+        "",
+        f"- sheet_mode: {sheet_mode}",
+        f"- canvas_size: {canvas_size}",
+        f"- max_fill_ratio: {max_fill_ratio}",
+        "- canvas size is a generation preference, not the source image dimensions.",
+        background_contract(sheet_mode),
+        "",
+        component_contract_markdown(components),
+    ]
+    if include_raw_json:
+        sections.append(raw_json_markdown(style, components))
+    return "\n".join(sections).rstrip() + "\n"
+
+
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description="Build the canonical Markdown prompt for UI spritesheet generation.")
+    parser.add_argument("--spec", required=True, type=Path, help="Path to spec.json")
+    parser.add_argument("--output", required=True, type=Path, help="Output Markdown prompt path")
+    parser.add_argument("--sheet-mode", choices=["solid-key", "transparent"], default="solid-key")
+    parser.add_argument("--component-group", help="Only include components with this atlas_policy.group")
+    parser.add_argument("--component-id", action="append", help="Only include this component id; repeat as needed")
+    parser.add_argument("--canvas-size", default="1536x1024", help="Preferred generation canvas size")
+    parser.add_argument("--max-fill-ratio", type=float, default=0.65, help="Maximum selected target area / canvas area")
+    parser.add_argument("--include-raw-json", action=argparse.BooleanOptionalAction, default=True)
+    return parser.parse_args(argv)
+
+
+def main(argv=None):
+    args = parse_args(argv)
+    try:
+        if args.max_fill_ratio <= 0:
+            raise PromptBuildError("--max-fill-ratio must be > 0")
+        spec = load_spec(args.spec)
+        prompt = build_prompt(
+            spec,
+            sheet_mode=args.sheet_mode,
+            component_group=args.component_group,
+            component_ids=args.component_id,
+            canvas_size=args.canvas_size,
+            max_fill_ratio=args.max_fill_ratio,
+            include_raw_json=args.include_raw_json,
+        )
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(prompt, encoding="utf-8")
+        print(f"Saved spritesheet prompt: {args.output}")
+    except PromptBuildError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

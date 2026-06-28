@@ -4,7 +4,7 @@
   "type": "object",
   "required": ["schema_version", "source_image", "style", "background", "components"],
   "properties": {
-    "schema_version": { "const": "1.0" },
+    "schema_version": { "const": "1.1" },
     "source_image": {
       "type": "object",
       "required": ["path", "width", "height"],
@@ -17,9 +17,20 @@
     },
     "style": {
       "type": "object",
-      "required": ["description", "palette", "materials", "lighting", "ornament_language", "negative_constraints"],
+      "required": [
+        "description",
+        "ui_style",
+        "background_style",
+        "palette",
+        "materials",
+        "lighting",
+        "ornament_language",
+        "negative_constraints"
+      ],
       "properties": {
         "description": { "type": "string" },
+        "ui_style": { "type": "string" },
+        "background_style": { "type": "string" },
         "palette": { "type": "array", "items": { "type": "string" } },
         "materials": { "type": "array", "items": { "type": "string" } },
         "lighting": { "type": "string" },
@@ -84,6 +95,8 @@
         "visual_description",
         "attached_decorations",
         "center",
+        "surface_policy",
+        "occlusion",
         "render_pattern",
         "resolution_policy",
         "atlas_policy",
@@ -98,6 +111,17 @@
         "visual_description": { "type": "string" },
         "attached_decorations": { "type": "array", "items": { "type": "string" } },
         "center": { "enum": ["hollow", "filled", "transparent", "n/a"] },
+        "surface_policy": { "enum": ["flat_fill", "textured_fill", "hollow", "transparent", "n/a"] },
+        "occlusion": {
+          "type": "object",
+          "required": ["status", "occluders", "reconstruction"],
+          "properties": {
+            "status": { "enum": ["unoccluded", "partially_occluded"] },
+            "occluders": { "type": "array", "items": { "type": "string" } },
+            "reconstruction": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
         "render_pattern": {
           "enum": ["background_image", "nine_slice", "linear_clip", "radial_clip", "tiled_repeat", "overlay_stack"]
         },
