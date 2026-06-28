@@ -80,6 +80,16 @@ python scripts/ui_slice.py \
 
 `transparentize-border` removes only pixels connected to the crop border and near the detected background color. It must not delete all matching white pixels globally, because white may be part of the item material.
 
+## External Image Generation Fallback
+
+Use this only when the current environment has no available image generation service for the mandatory background plate or UI atlas steps. Ask the user before calling any external service.
+
+Before continuing, request the image API base URL, model or endpoint shape, and API key delivery method. Explain that the token and uploaded effect image will be exposed to the tool execution environment and the configured image service. Recommend a temporary, low-scope, revocable API key.
+
+Prefer passing the API key through an environment variable. Never write the token to the repo, run directory, prompt files, generated HTML, logs, schemas, or screenshots. Do not echo authorization headers. If the request fails, report only the status code and error category.
+
+Use `xh` or `curl` only after the user has confirmed the service and upload scope. Save generated images into the invocation run directory. Large images should be referenced by path by default; show an inline image only for useful review, and prefer a downsampled thumbnail over embedding full-size output in the conversation.
+
 ## Common Mistakes
 
 | Mistake | Correction |
