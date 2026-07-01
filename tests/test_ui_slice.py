@@ -14,6 +14,90 @@ SCRIPT = PACKAGE / "scripts" / "ui_slice.py"
 
 
 class UiSliceTests(unittest.TestCase):
+    def write_per_atlas_map(self, path, atlas_file, sprites):
+        path.write_text(
+            json.dumps(
+                {
+                    "schema_version": "1.0",
+                    "atlas": {"id": path.stem.removesuffix(".map"), "file": atlas_file},
+                    "sprites": sprites,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    def test_slices_multiple_per_atlas_maps_from_atlas_dir(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            atlas_dir = work / "atlas"
+            atlas_dir.mkdir()
+            Image.new("RGBA", (16, 16), (10, 20, 30, 255)).save(atlas_dir / "buttons_01.png")
+            Image.new("RGBA", (16, 16), (40, 50, 60, 255)).save(atlas_dir / "panels_01.png")
+            self.write_per_atlas_map(
+                atlas_dir / "buttons_01.map.json",
+                "buttons_01.png",
+                [{"id": "button", "filename": "button.png", "bbox": {"x": 0, "y": 0, "w": 8, "h": 8}}],
+            )
+            self.write_per_atlas_map(
+                atlas_dir / "panels_01.map.json",
+                "panels_01.png",
+                [{"id": "panel", "filename": "panel.png", "bbox": {"x": 8, "y": 8, "w": 8, "h": 8}}],
+            )
+
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), "--atlas-dir", str(atlas_dir), "--out", str(work / "sprites")],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue((work / "sprites" / "button.png").is_file())
+            self.assertTrue((work / "sprites" / "panel.png").is_file())
+
+    def test_per_atlas_maps_reject_duplicate_sprite_ids(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            atlas_dir = work / "atlas"
+            atlas_dir.mkdir()
+            Image.new("RGBA", (16, 16), (10, 20, 30, 255)).save(atlas_dir / "buttons_01.png")
+            Image.new("RGBA", (16, 16), (40, 50, 60, 255)).save(atlas_dir / "panels_01.png")
+            sprite = {"id": "button", "filename": "button.png", "bbox": {"x": 0, "y": 0, "w": 8, "h": 8}}
+            self.write_per_atlas_map(atlas_dir / "buttons_01.map.json", "buttons_01.png", [sprite])
+            self.write_per_atlas_map(
+                atlas_dir / "panels_01.map.json",
+                "panels_01.png",
+                [{**sprite, "filename": "button_alt.png"}],
+            )
+
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), "--atlas-dir", str(atlas_dir), "--out", str(work / "sprites")],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("duplicate sprite id: button", result.stderr)
+
+    def test_per_atlas_maps_require_matching_atlas_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            atlas_dir = work / "atlas"
+            atlas_dir.mkdir()
+            self.write_per_atlas_map(
+                atlas_dir / "buttons_01.map.json",
+                "buttons_01.png",
+                [{"id": "button", "filename": "button.png", "bbox": {"x": 0, "y": 0, "w": 8, "h": 8}}],
+            )
+
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), "--atlas-dir", str(atlas_dir), "--out", str(work / "sprites")],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("atlas file not found", result.stderr)
+
     def test_rejects_out_of_bounds_bbox(self):
         with tempfile.TemporaryDirectory() as tmp:
             work = Path(tmp)

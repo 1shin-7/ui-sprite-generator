@@ -1,9 +1,9 @@
-# Prompt 04 - Verify Labeled Spritesheet
+# Prompt 04 - Verify Labeled Atlas Sheet
 
-**Inputs:** `input/effect.png`, `spec.yaml`, one generated `spritesheet/*.png`
+**Inputs:** `effect.png`, `spec.yaml`, one generated `atlas/*.png`
 **Output:** valid JSON correction report or `{"status":"approved"}`  
 
-You are a QA engineer for a game UI sprite pipeline. Compare the original effect image, the selected component contract in `spec.yaml`, and the generated labeled spritesheet.
+You are a QA engineer for a game UI sprite pipeline. Compare the original effect image, the selected component contract in `spec.yaml`, and the generated labeled atlas sheet.
 
 For each selected component, evaluate:
 

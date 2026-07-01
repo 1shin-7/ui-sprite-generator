@@ -18,9 +18,9 @@
   <a href="./README.zh-CN.md">简体中文</a>
 </p>
 
-> 将游戏 UI 效果图拆解为干净背景、重绘式 labeled spritesheet、切图资产和可被 Playwright 验证的静态 HTML。
+> 将游戏 UI 效果图拆解为干净背景、per-atlas crop map、切图资产和可被 Playwright 验证的静态 HTML。
 
-`ui-sprite-generator.skill` 是一个 Codex skill，用于把游戏 UI 效果图转换为可被 Playwright 截图验证的静态重建产物：干净背景板、重新绘制的 labeled spritesheet、切出的 sprite PNG，以及最终 HTML。
+`ui-sprite-generator.skill` 是一个 Codex skill，用于把游戏 UI 效果图转换为可被 Playwright 截图验证的静态重建产物：干净背景板、重新绘制的 labeled atlas sheet、切出的 sprite PNG，以及最终 HTML。
 
 它的目标不是把截图矩形裁开，而是把复杂 UI chrome 还原为可验证、可切图、可复用的资产管线。
 
@@ -29,7 +29,8 @@
 - 将 UI 效果图拆成语义资产，而不是直接裁出带背景污染的矩形块。
 - 生成 `spec.yaml`：记录 source bbox、组件角色、遮挡关系、surface policy、分辨率策略和渲染模式。
 - 生成 `background_plate.png`：移除前景 UI，并尽可能重建被 UI 遮挡的背景区域。
-- 默认使用 labeled spritesheet：每个 sprite 外部带 id label，便于人工和模型在切图前做 QA。
+- 默认使用 labeled atlas sheet：每个 sprite 外部带 id label，便于人工和模型在切图前做 QA。
+- 每张 atlas 图旁边放自己的 `*.map.yaml`，让 VLM 每次只读取单张图做 crop 提取。
 - `scripts/ui_slice.py` 只做机械切图和边缘背景清理，不负责猜测、确认或修正坐标。
 - `scripts/openai_image.py` 支持 OpenAI-compatible `/images/generations` 与 `/images/edits`。
 - 输出面向 Playwright 的静态 HTML，包含 `window.__UI_READY__ = true` 和可选 debug overlay。
@@ -48,13 +49,13 @@ pnpx skills add https://github.com/1shin-7/ui-sprite-generator.skill --skill ui-
 
 1. `spec.yaml` 描述效果图里的 UI 语义。
 2. `background_plate.png` 还原 UI 背后的干净背景。
-3. Labeled spritesheet 重新绘制隔离 UI 组件，并把 id label 放在 sprite 外部。
-4. `atlas_map.yaml` 记录 QA 后的 crop 坐标和输出文件名。
-5. `render.yaml` 合并 spec 中的布局和 atlas map 中的 sprite 文件名。
+3. Labeled atlas sheet 重新绘制隔离 UI 组件，并把 id label 放在 sprite 外部。
+4. `atlas/*.map.yaml` 只记录单张 atlas 图的 crop 坐标和输出文件名。
+5. `render.yaml` 合并 spec 中的布局和 per-atlas sprite 文件名。
 6. `ui_slice.py` 只按坐标切图，不修图、不猜图、不生成报告。
-7. `html/index.html` 用背景板和绝对定位 sprite 重建场景，供 Playwright 截图。
+7. `index.html` 用背景板和绝对定位 sprite 重建场景，供 Playwright 截图。
 
-默认路线是 labeled spritesheet，而不是直接生成正式 atlas。原因很简单：label 能让失败变得可观察。比如装饰缺失、flat fill 被污染、遮挡物混入、label 压进 sprite、模型脑补过多细节、进度条填充向内坍缩，这些问题都应该在切图前暴露。
+默认路线是 labeled atlas sheet，而不是无 label 的正式 atlas。原因很简单：label 能让失败变得可观察。比如装饰缺失、flat fill 被污染、遮挡物混入、label 压进 sprite、模型脑补过多细节、进度条填充向内坍缩，这些问题都应该在切图前暴露。
 
 进度条填充、hollow frame、被文字或装饰遮挡的组件尤其不能直接矩形裁切。正式 sprite 应该按照 spec 中的语义重绘，HTML 再负责裁剪、叠放和显示比例。
 
@@ -66,13 +67,14 @@ pnpx skills add https://github.com/1shin-7/ui-sprite-generator.skill --skill ui-
 python -B -m unittest tests.test_build_spritesheet_prompt
 python -B -m unittest tests.test_openai_image_script
 python -B -m unittest tests.test_ui_slice
+python -B -m unittest tests.test_build_render_manifest
 ```
 
 完整本地验证：
 
 ```bash
-python -B -m unittest tests.test_skill_docs tests.test_build_spritesheet_prompt tests.test_build_atlas_prompt tests.test_openai_image_script tests.test_ui_slice tests.test_package_layout
-python -m py_compile ui-sprite-generator/scripts/openai_image.py ui-sprite-generator/scripts/build_atlas_prompt.py ui-sprite-generator/scripts/build_spritesheet_prompt.py ui-sprite-generator/scripts/ui_slice.py
+python -B -m unittest tests.test_skill_docs tests.test_build_spritesheet_prompt tests.test_build_atlas_prompt tests.test_openai_image_script tests.test_ui_slice tests.test_package_layout tests.test_data_io tests.test_build_render_manifest
+python -m py_compile ui-sprite-generator/scripts/openai_image.py ui-sprite-generator/scripts/build_atlas_prompt.py ui-sprite-generator/scripts/build_spritesheet_prompt.py ui-sprite-generator/scripts/ui_slice.py ui-sprite-generator/scripts/data_io.py ui-sprite-generator/scripts/atlas_maps.py ui-sprite-generator/scripts/build_render_manifest.py
 git diff --check
 ```
 

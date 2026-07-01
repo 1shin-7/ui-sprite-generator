@@ -54,11 +54,11 @@ The attached effect image is the SOURCE MOCKUP. Match its UI material, color ton
 
 ## Output Naming
 
-Save the generated image as a spritesheet file such as:
+Save the generated image as a labeled atlas file such as:
 
 ```text
-spritesheet/spritesheet_buttons_01.png
-spritesheet/spritesheet_panels_01.png
+atlas/buttons_01.png
+atlas/panels_01.png
 ```
 """
 

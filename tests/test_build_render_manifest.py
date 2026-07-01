@@ -75,6 +75,18 @@ def minimal_atlas_map():
 
 
 class BuildRenderManifestTests(unittest.TestCase):
+    def write_per_atlas_map(self, path, atlas_file, sprites):
+        path.write_text(
+            json.dumps(
+                {
+                    "schema_version": "1.0",
+                    "atlas": {"id": path.stem.removesuffix(".map"), "file": atlas_file},
+                    "sprites": sprites,
+                }
+            ),
+            encoding="utf-8",
+        )
+
     def test_builds_compact_manifest_from_spec_layout_and_atlas_assets(self):
         module = load_script_module()
 
@@ -135,6 +147,48 @@ class BuildRenderManifestTests(unittest.TestCase):
             data = json.loads(out_path.read_text(encoding="utf-8"))
             self.assertEqual(data["sprites"][0]["file"], "sprites/bar_fill.png")
 
+    def test_cli_builds_render_manifest_from_per_atlas_maps(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            atlas_dir = work / "atlas"
+            atlas_dir.mkdir()
+            (atlas_dir / "bars_01.png").write_bytes(b"fake image")
+            spec_path = work / "spec.json"
+            out_path = work / "render.json"
+            spec_path.write_text(json.dumps(minimal_spec()), encoding="utf-8")
+            self.write_per_atlas_map(
+                atlas_dir / "bars_01.map.json",
+                "bars_01.png",
+                [
+                    {"id": "bar_fill", "filename": "bar_fill.png", "bbox": {"x": 5, "y": 6, "w": 70, "h": 12}},
+                    {"id": "bar_track", "filename": "bar_track.png", "bbox": {"x": 80, "y": 6, "w": 70, "h": 12}},
+                ],
+            )
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "--spec",
+                    str(spec_path),
+                    "--atlas-dir",
+                    str(atlas_dir),
+                    "--output",
+                    str(out_path),
+                    "--background",
+                    "background_plate.png",
+                    "--sprites-dir",
+                    "sprites",
+                ],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            data = json.loads(out_path.read_text(encoding="utf-8"))
+            self.assertEqual(data["sprites"][0]["file"], "sprites/bar_fill.png")
+            self.assertEqual(data["sprites"][0]["z_index"], 20)
+
     def test_fails_when_spec_component_has_no_sprite_asset(self):
         module = load_script_module()
         atlas_map = minimal_atlas_map()
@@ -150,6 +204,21 @@ class BuildRenderManifestTests(unittest.TestCase):
 
         with self.assertRaisesRegex(module.RenderManifestError, "bar_fill: invalid render fields"):
             module.build_render_manifest(spec, minimal_atlas_map())
+
+    def test_fails_when_sprite_asset_is_not_present_in_spec(self):
+        module = load_script_module()
+        atlas_map = minimal_atlas_map()
+        atlas_map["sprites"].append(
+            {
+                "id": "extra_asset",
+                "atlas": "sheet",
+                "filename": "extra_asset.png",
+                "bbox": {"x": 1, "y": 1, "w": 2, "h": 2},
+            }
+        )
+
+        with self.assertRaisesRegex(module.RenderManifestError, "sprite asset not present in spec"):
+            module.build_render_manifest(minimal_spec(), atlas_map)
 
 
 if __name__ == "__main__":

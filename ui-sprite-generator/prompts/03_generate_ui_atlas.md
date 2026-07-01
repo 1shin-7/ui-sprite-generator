@@ -1,6 +1,6 @@
 # Prompt 03 - Generate UI Atlases
 
-**Inputs:** `input/effect.png`, `spec.yaml`
+**Inputs:** `effect.png`, `spec.yaml`
 **Outputs:** one or more `atlas/*.png` files in the run directory  
 
 You are a game UI sprite sheet artist. Generate game-ready UI sprite atlas images from the components in `spec.yaml`.

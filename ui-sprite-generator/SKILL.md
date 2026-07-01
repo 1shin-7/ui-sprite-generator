@@ -15,15 +15,15 @@ Create or reuse a run directory in the caller's current workspace:
 
 ```text
 ui-sprite-runs/YYYY-MM-DD-slug/
-  input/effect.png
+  effect.png
   spec.yaml
   background_plate.png
-  spritesheet/*.png
-  atlas_map.yaml
-  sprites/*.png
   render.yaml
-  html/index.html
-  screenshots/final.png
+  index.html
+  final.png
+  atlas/*.png
+  atlas/*.map.yaml
+  sprites/*.png
 ```
 
 Never write run artifacts into the skill install directory, `.agents/skills`, or `.codex/skills`.
@@ -43,39 +43,38 @@ Do not ask the user to edit a non-existent .env path. If credentials are needed 
 3. **Generate background plate** with `prompts/02_generate_background_plate.md`.
    Output `background_plate.png`. This step is mandatory. Preserve visible background regions and infer UI-occluded regions by inpainting or generation. The final background plate must match the source canvas dimensions, but the image API generation size may be a larger standard size selected at runtime. Use `scripts/openai_image.py --size auto --purpose background --spec ui-sprite-runs/YYYY-MM-DD-slug/spec.yaml --normalize-background-to-source` when the provider supports standard sizes better than the exact source size. Do not create a stable background report YAML or image size plan YAML.
 
-4. **Generate labeled spritesheets** with `prompts/03_generate_spritesheet.md`.
-   First generate the formal Markdown prompt artifact with `scripts/build_spritesheet_prompt.py --spec ui-sprite-runs/YYYY-MM-DD-slug/spec.yaml --output ui-sprite-runs/YYYY-MM-DD-slug/prompts/spritesheet.md`. Do not handwrite `spritesheet.md`, do not summarize the canonical prompt, and do not replace it with a shorter natural-language prompt. Then pass that Markdown file to the selected image generation service from the Generation Capability Gate. Output one or more labeled spritesheet PNGs under `spritesheet/`. The default is a labeled spritesheet in `solid-key` mode, not a direct formal atlas. Direct formal atlas generation is an advanced mode only after this default pipeline is proven inadequate for a specific provider.
+4. **Generate labeled atlas sheets** with `prompts/03_generate_spritesheet.md`.
+   First generate the formal Markdown prompt artifact with `scripts/build_spritesheet_prompt.py --spec ui-sprite-runs/YYYY-MM-DD-slug/spec.yaml --output ui-sprite-runs/YYYY-MM-DD-slug/atlas/buttons_01.prompt.md --component-group buttons`. Do not handwrite the prompt, do not summarize the canonical prompt, and do not replace it with a shorter natural-language prompt. Then pass that Markdown file to the selected image generation service from the Generation Capability Gate. Output one or more labeled atlas PNGs under `atlas/`. The default is a labeled sheet in `solid-key` mode, not an unlabeled formal atlas.
 
-5. **Verify labeled spritesheets** with `prompts/04_verify_spritesheet.md`.
-   Check each generated spritesheet before mapping. If QA reports missing components, wrong center semantics, decoration missing, unwanted texture noise, flat fill pollution, occlusion contamination, a label inside the sprite crop, or flat bar fill, rebuild `spritesheet.md` with `scripts/build_spritesheet_prompt.py --component-id <id>` or `--component-group <group>` and regenerate the failed subset.
+5. **Verify labeled atlas sheets** with `prompts/04_verify_spritesheet.md`.
+   Check each generated atlas sheet before mapping. If QA reports missing components, wrong center semantics, decoration missing, unwanted texture noise, flat fill pollution, occlusion contamination, a label inside the sprite crop, or flat bar fill, rebuild a focused `atlas/<name>.prompt.md` with `scripts/build_spritesheet_prompt.py --component-id <id>` or `--component-group <group>` and regenerate the failed subset.
 
-6. **Extract atlas map** with `prompts/04_extract_atlas_map.md`.
-   Output `atlas_map.yaml`. This is the asset/crop map: spritesheet files, sprite crop bboxes, and output filenames. External id labels must not be included in crop bboxes. Do not use atlas map as the final layout contract.
+6. **Extract per-atlas crop maps** with `prompts/04_extract_atlas_map.md`.
+   For each generated atlas image, output one sibling `atlas/<name>.map.yaml`. This is a per-atlas crop contract: atlas file, sprite crop bboxes, and output filenames. External id labels must not be included in crop bboxes. Do not output a global `atlas_map.yaml` in the new workflow.
 
 7. **Slice sprites** with `scripts/ui_slice.py`.
    The slicer is mechanical: it validates inputs, crops bboxes, optionally removes border-connected background, and writes `sprites/*.png`. It does not infer, confirm, correct, generate reports, or draw debug overlays.
 
 8. **Build render manifest** with `scripts/build_render_manifest.py`.
-   Output `render.yaml`. This compact HTML input joins layout from `spec.yaml` with sprite filenames from `atlas_map.yaml`. spec.yaml is authoritative for source bbox, display size, z-index, render pattern, companions, and layer intent.
+   Output `render.yaml`. This compact HTML input joins layout from `spec.yaml` with sprite filenames from `atlas/*.map.yaml`. spec.yaml is authoritative for source bbox, display size, z-index, render pattern, companions, and layer intent.
 
 9. **Generate Playwright HTML** with `prompts/05_generate_playwright_html.md`.
-   Output `html/index.html` from `render.yaml`. Use static Jinja-style HTML/CSS with `background_plate.png` behind absolutely positioned sprites. The page serves Playwright screenshots only. JavaScript is limited to `window.__UI_READY__ = true` and optional `?debug=1` overlay. If static rendering fails, ask before injecting temporary JS patches.
+   Output `index.html` from `render.yaml`. Use static Jinja-style HTML/CSS with `background_plate.png` behind absolutely positioned sprites. The page serves Playwright screenshots only. JavaScript is limited to `window.__UI_READY__ = true` and optional `?debug=1` overlay. If static rendering fails, ask before injecting temporary JS patches. Capture the Playwright verification screenshot as `final.png`.
 
 ## Stable Contracts
 
-Keep three stable YAML-first contract files. Existing `.json` run files remain readable for backward compatibility.
+Keep two stable YAML-first contract files. Existing `atlas_map.yaml` or `.json` run files remain readable as legacy input for helper scripts, but the new workflow does not create a global atlas map.
 
 | File | Purpose |
 | --- | --- |
 | `spec.yaml` | Semantic UI, background, component, layout, resolution, atlas, and rendering intent |
-| `atlas_map.yaml` | Atlas file and crop coordinates plus sliced filename |
 | `render.yaml` | Compact HTML input with spec-sourced layout and atlas-sourced sprite filenames |
 
-Do not promote `sheet_plan.yaml`, `background_report.yaml`, `slice_report.yaml`, `render_report.yaml`, or any generated image-size plan into stable contracts. Runtime image size and spritesheet packing decisions belong in helper arguments, generated prompts, and stdout, not in another stable artifact.
+`atlas/*.map.yaml` files are scoped per-atlas crop contracts for VLM accuracy. They are not a global stable contract and must be merged only in script memory while slicing or building `render.yaml`. Do not promote `atlas_map.yaml` into the new workflow. Do not promote `sheet_plan.yaml`, `background_report.yaml`, `slice_report.yaml`, `render_report.yaml`, or any generated image-size plan into stable contracts. Runtime image size and atlas packing decisions belong in helper arguments, generated prompts, and stdout, not in another stable artifact.
 
 ## Labeled Spritesheet Default
 
-Default Phase 4 uses `scripts/build_spritesheet_prompt.py` to generate an observable labeled spritesheet prompt. The generated image may use `solid-key` mode with `#e0e0e0` or `transparent` mode when the provider reliably supports alpha. In both modes, component ids are external labels used for map extraction. Labels must remain outside sprite crop bboxes.
+Default Phase 4 uses `scripts/build_spritesheet_prompt.py` to generate an observable labeled atlas prompt. The generated image may use `solid-key` mode with `#e0e0e0` or `transparent` mode when the provider reliably supports alpha. In both modes, component ids are external labels used for map extraction. Labels must remain outside sprite crop bboxes.
 
 `debug_bbox.png`, when produced by a slicer or downstream debug tool, is only a visualization of an existing coordinate map for human review. It is not the source of automatic sprite recognition.
 
@@ -85,7 +84,7 @@ Treat scripts as stable command-line helpers during normal execution. Prefer SKI
 
 ```bash
 python scripts/ui_slice.py \
-  --map ui-sprite-runs/YYYY-MM-DD-slug/atlas_map.yaml \
+  --atlas-dir ui-sprite-runs/YYYY-MM-DD-slug/atlas \
   --out ui-sprite-runs/YYYY-MM-DD-slug/sprites \
   --bg-policy keep
 ```
@@ -94,7 +93,7 @@ Optional white or gray background cleanup:
 
 ```bash
 python scripts/ui_slice.py \
-  --map ui-sprite-runs/YYYY-MM-DD-slug/atlas_map.yaml \
+  --atlas-dir ui-sprite-runs/YYYY-MM-DD-slug/atlas \
   --out ui-sprite-runs/YYYY-MM-DD-slug/sprites \
   --bg-policy transparentize-border \
   --bg-color auto \
@@ -143,9 +142,9 @@ python .agents/skills/ui-sprite-generator/scripts/openai_image.py \
   --purpose background \
   --size auto \
   --normalize-background-to-source \
-  --prompt-file ui-sprite-runs/YYYY-MM-DD-slug/prompts/background_plate.txt \
+  --prompt-file ui-sprite-runs/YYYY-MM-DD-slug/background_plate.prompt.txt \
   --mode edits \
-  --input-image ui-sprite-runs/YYYY-MM-DD-slug/input/effect.png \
+  --input-image ui-sprite-runs/YYYY-MM-DD-slug/effect.png \
   --output ui-sprite-runs/YYYY-MM-DD-slug/background_plate.png
 ```
 
@@ -165,11 +164,11 @@ Save generated images into the invocation run directory. Large images should be 
 | --- | --- |
 | Writing generated files beside `SKILL.md` | Put them in the invocation run directory |
 | Treating fixed atlas sizes as hard limits | Preserve sprite resolution and split atlases instead |
-| Using direct formal atlas as the default | Use labeled spritesheets first; formal atlas is advanced mode |
+| Using direct formal atlas as the default | Use labeled atlas sheets first; unlabeled formal atlas is advanced mode |
 | Making Phase 4 a general JS runtime | Generate static HTML for Playwright; JS is a last-resort patch |
-| Letting the slicer fix coordinates | Fix `atlas_map.yaml` or legacy `atlas_map.json`; the slicer should fail on bad bboxes |
+| Letting the slicer fix coordinates | Fix the relevant `atlas/*.map.yaml` or legacy `atlas_map.json`; the slicer should fail on bad bboxes |
 | Debugging atlas crops in the slicer | Use final HTML `?debug=1` overlay for render/debug inspection |
 | Replacing Phase 2 or Phase 3 with local segmentation | Stop and call `scripts/openai_image.py`, or ask the user to finish `ui-sprite-runs/.env` configuration |
 | Shipping deterministic component slicing as a "usable result" | Treat it as invalid; crops are analysis reference only, not formal atlas art |
-| Handwriting a short atlas prompt | Use `scripts/build_atlas_prompt.py` to generate `ui_atlas.md` |
-| Handwriting a short spritesheet prompt | Use `scripts/build_spritesheet_prompt.py` to generate `spritesheet.md` |
+| Handwriting a short atlas prompt | Use `scripts/build_spritesheet_prompt.py` to generate a focused `atlas/<name>.prompt.md` |
+| Mapping multiple atlas sheets at once | Run `prompts/04_extract_atlas_map.md` once per atlas image |

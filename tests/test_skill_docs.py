@@ -112,16 +112,16 @@ class SkillDocTests(unittest.TestCase):
         self.assertIn("clipped ornament", content)
         self.assertIn("regenerate the sprite", content)
 
-    def test_phase_3_requires_labeled_spritesheet_builder_not_direct_atlas_by_default(self):
+    def test_phase_3_requires_labeled_atlas_builder_not_direct_atlas_by_default(self):
         skill = (ROOT / "ui-sprite-generator" / "SKILL.md").read_text(encoding="utf-8").lower()
         spritesheet_prompt = (ROOT / "ui-sprite-generator" / "prompts" / "03_generate_spritesheet.md").read_text(
             encoding="utf-8"
         ).lower()
 
         self.assertIn("scripts/build_spritesheet_prompt.py", skill)
-        self.assertIn("spritesheet.md", skill)
-        self.assertIn("labeled spritesheet", skill)
-        self.assertIn("direct formal atlas", skill)
+        self.assertIn("atlas/<name>.prompt.md", skill)
+        self.assertIn("labeled atlas", skill)
+        self.assertIn("unlabeled formal atlas", skill)
         self.assertIn("advanced mode", skill)
         self.assertIn("do not handwrite", skill)
         self.assertIn("do not summarize", skill)
@@ -227,16 +227,31 @@ class SkillDocTests(unittest.TestCase):
         ).lower()
 
         self.assertIn("spec.yaml", skill)
-        self.assertIn("atlas_map.yaml", skill)
         self.assertIn("render.yaml", skill)
         self.assertIn("spec.yaml is authoritative", skill)
-        self.assertIn("asset/crop map", skill)
+        self.assertIn("per-atlas crop contract", skill)
         self.assertIn("build_render_manifest.py", skill)
         self.assertIn("do not infer, copy, or emit final layout fields", atlas_prompt)
         self.assertIn("source_bbox", atlas_prompt)
         self.assertIn("z_index", atlas_prompt)
         self.assertIn("render.yaml", html_prompt)
         self.assertIn("render.root_size", html_prompt)
+
+    def test_flat_session_and_per_atlas_maps_are_documented(self):
+        skill = (ROOT / "ui-sprite-generator" / "SKILL.md").read_text(encoding="utf-8").lower()
+        atlas_prompt = (ROOT / "ui-sprite-generator" / "prompts" / "04_extract_atlas_map.md").read_text(
+            encoding="utf-8"
+        ).lower()
+
+        self.assertIn("effect.png", skill)
+        self.assertIn("atlas/*.map.yaml", skill)
+        self.assertIn("sprites/", skill)
+        self.assertIn("per-atlas crop contract", skill)
+        self.assertIn("legacy input", skill)
+        self.assertIn("--atlas-dir", skill)
+        self.assertIn("one generated atlas image", atlas_prompt)
+        self.assertIn("output only one per-atlas yaml object", atlas_prompt)
+        self.assertIn("do not output a global atlas_map.yaml", atlas_prompt)
 
 
 if __name__ == "__main__":

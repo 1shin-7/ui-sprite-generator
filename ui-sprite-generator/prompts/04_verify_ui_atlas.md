@@ -1,6 +1,6 @@
 # Prompt 04 - Verify UI Atlas
 
-**Inputs:** `input/effect.png`, `spec.yaml`, one generated `atlas/*.png`
+**Inputs:** `effect.png`, `spec.yaml`, one generated `atlas/*.png`
 **Output:** valid JSON correction report or `{"status":"approved"}`
 
 You are a QA engineer for a game UI sprite pipeline. Compare the original effect image, the selected component contract in `spec.yaml`, and the generated UI atlas.

@@ -1,6 +1,6 @@
 # Prompt 02 - Verify And Complete Spec
 
-**Inputs:** same conversation as `prompts/01_extract_spec.md`, `input/effect.png`, draft `spec.yaml`
+**Inputs:** same conversation as `prompts/01_extract_spec.md`, `effect.png`, draft `spec.yaml`
 **Output:** corrected `spec.yaml` in the run directory
 
 Review the draft `spec.yaml` against the attached effect image. Perform these passes, then output the corrected final YAML only.

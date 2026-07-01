@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Per-Atlas UI Sprite Crop Map",
+  "type": "object",
+  "required": ["schema_version", "atlas", "sprites"],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "atlas": {
+      "type": "object",
+      "required": ["id", "file"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9_\\-]+$" },
+        "file": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "sprites": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "filename", "bbox"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+          "filename": { "type": "string", "pattern": "^[a-zA-Z0-9_.\\-]+\\.png$" },
+          "bbox": { "$ref": "#/$defs/bbox" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "$defs": {
+    "bbox": {
+      "type": "object",
+      "required": ["x", "y", "w", "h"],
+      "properties": {
+        "x": { "type": "integer", "minimum": 0 },
+        "y": { "type": "integer", "minimum": 0 },
+        "w": { "type": "integer", "minimum": 1 },
+        "h": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -18,16 +18,17 @@
   <a href="./README.zh-CN.md">简体中文</a>
 </p>
 
-> Convert game UI mockups into clean background plates, regenerated labeled spritesheets, sliced sprites, and Playwright-ready static HTML.
+> Convert game UI mockups into clean background plates, per-atlas crop maps, sliced sprites, and Playwright-ready static HTML.
 
-`ui-sprite-generator.skill` is a Codex skill for turning a game UI mockup into a Playwright-capturable static reconstruction: clean background plate, regenerated labeled UI spritesheets, sliced sprite PNGs, and HTML.
+`ui-sprite-generator.skill` is a Codex skill for turning a game UI mockup into a Playwright-capturable static reconstruction: clean background plate, regenerated labeled UI atlas sheets, sliced sprite PNGs, and HTML.
 
 ## Features
 
 - Reconstructs UI mockups as semantic assets instead of rectangular screenshot crops.
 - Generates a `spec.yaml` contract for source bboxes, component roles, occlusion, surfaces, resolution policy, and render patterns.
 - Restores `background_plate.png` by removing foreground UI and regenerating occluded background regions.
-- Uses labeled spritesheets by default so agents and humans can verify component identity before slicing.
+- Uses labeled atlas sheets by default so agents and humans can verify component identity before slicing.
+- Keeps each atlas image next to its own `*.map.yaml`, so VLM crop extraction only sees one image at a time.
 - Keeps atlas slicing mechanical through `scripts/ui_slice.py`; no hidden coordinate correction in the slicer.
 - Supports OpenAI-compatible `/images/generations` and `/images/edits` endpoints through `scripts/openai_image.py`.
 - Produces static Playwright-oriented HTML with `window.__UI_READY__ = true` and optional debug overlay.
@@ -46,13 +47,13 @@ The workflow is intentionally split into contracts and mechanical steps:
 
 1. `spec.yaml` describes what the mockup means.
 2. `background_plate.png` restores the world behind the UI.
-3. Labeled spritesheets regenerate clean UI components with visible external ids.
-4. `atlas_map.yaml` records crop coordinates after visual QA.
-5. `render.yaml` combines spec-sourced layout with atlas-sourced sprite filenames.
+3. Labeled atlas sheets regenerate clean UI components with visible external ids.
+4. `atlas/*.map.yaml` records crop coordinates for one atlas image at a time.
+5. `render.yaml` combines spec-sourced layout with per-atlas sprite filenames.
 6. `ui_slice.py` slices sprites without inventing or correcting art.
-7. `html/index.html` reconstructs the scene for Playwright screenshots.
+7. `index.html` reconstructs the scene for Playwright screenshots.
 
-The default is labeled spritesheets, not a direct formal atlas. Labels make failures observable: missing decorations, polluted flat fills, occlusion contamination, label overlap, overgenerated detail, and non-rectangular bar fills can be caught before final slicing.
+The default is labeled atlas sheets, not an unlabeled formal atlas. Labels make failures observable: missing decorations, polluted flat fills, occlusion contamination, label overlap, overgenerated detail, and non-rectangular bar fills can be caught before final slicing.
 
 ## Dev
 
@@ -62,13 +63,14 @@ Run focused tests:
 python -B -m unittest tests.test_build_spritesheet_prompt
 python -B -m unittest tests.test_openai_image_script
 python -B -m unittest tests.test_ui_slice
+python -B -m unittest tests.test_build_render_manifest
 ```
 
 Run the full local suite:
 
 ```bash
-python -B -m unittest tests.test_skill_docs tests.test_build_spritesheet_prompt tests.test_build_atlas_prompt tests.test_openai_image_script tests.test_ui_slice tests.test_package_layout
-python -m py_compile ui-sprite-generator/scripts/openai_image.py ui-sprite-generator/scripts/build_atlas_prompt.py ui-sprite-generator/scripts/build_spritesheet_prompt.py ui-sprite-generator/scripts/ui_slice.py
+python -B -m unittest tests.test_skill_docs tests.test_build_spritesheet_prompt tests.test_build_atlas_prompt tests.test_openai_image_script tests.test_ui_slice tests.test_package_layout tests.test_data_io tests.test_build_render_manifest
+python -m py_compile ui-sprite-generator/scripts/openai_image.py ui-sprite-generator/scripts/build_atlas_prompt.py ui-sprite-generator/scripts/build_spritesheet_prompt.py ui-sprite-generator/scripts/ui_slice.py ui-sprite-generator/scripts/data_io.py ui-sprite-generator/scripts/atlas_maps.py ui-sprite-generator/scripts/build_render_manifest.py
 git diff --check
 ```
 

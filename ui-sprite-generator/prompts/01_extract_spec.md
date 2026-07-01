@@ -1,6 +1,6 @@
 # Prompt 01 - Extract Spec
 
-**Inputs:** `input/effect.png`  
+**Inputs:** `effect.png`
 **Output:** `spec.yaml` in the run directory
 
 You are a game UI asset pipeline engineer. Analyze the attached effect image and output one valid YAML object matching `schemas/spec.schema.json`. Do not wrap the YAML in markdown.

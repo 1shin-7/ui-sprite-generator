@@ -1,7 +1,7 @@
 # Prompt 05 - Generate Playwright HTML
 
 **Inputs:** `render.yaml`, `background_plate.png`, `sprites/*.png`
-**Output:** `html/index.html` in the run directory  
+**Output:** `index.html` in the run directory
 
 Generate a static HTML page for Playwright screenshot capture only.
 
@@ -10,7 +10,7 @@ Generate a static HTML page for Playwright screenshot capture only.
 - `.ui-root` must have fixed pixel dimensions matching `render.root_size`.
 - Place `background_plate.png` as the bottom layer, covering the full root.
 - Render each sprite with absolute positioning from `render` coordinates, using its `w`, `h`, `z_index`, and `render_pattern`.
-- Use relative asset paths from `html/index.html`.
+- Use relative asset paths from run-root `index.html`.
 - Do not use frameworks, bundlers, hydration, interaction, hover behavior, or runtime rendering APIs.
 - JavaScript is limited to:
   - `window.__UI_READY__ = true`

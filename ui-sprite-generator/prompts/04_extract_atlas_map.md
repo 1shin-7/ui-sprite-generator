@@ -1,16 +1,15 @@
 # Prompt 04 - Extract Atlas Map
 
-**Inputs:** `spec.yaml`, one or more `spritesheet/*.png`
-**Output:** `atlas_map.yaml` in the run directory
+**Inputs:** `spec.yaml`, one generated atlas image such as `atlas/buttons_01.png`
+**Output:** sibling per-atlas map such as `atlas/buttons_01.map.yaml`
 
-Analyze the labeled spritesheet files and output one valid YAML object matching `schemas/atlas_map.schema.json`. Do not wrap the YAML in markdown.
+Analyze exactly one labeled atlas image and output only one per-atlas YAML object matching `schemas/per_atlas_map.schema.json`. Do not wrap the YAML in markdown. Do not output a global atlas_map.yaml.
 
 ## Requirements
 
-- List every spritesheet file under `atlases[]` with a stable id and path.
+- Set `atlas.id` to the atlas file stem and `atlas.file` to the sibling PNG filename.
 - For every component sprite, record:
   - `id`, exactly matching `spec.components[].id`
-  - `atlas`, matching an atlas id
   - safe output `filename`
   - precise crop `bbox` in atlas pixels
 - Do not infer, copy, or emit final layout fields. `source_bbox`, `display_size`, `z_index`, `render_pattern`, and `render_params` come from `spec.yaml` and the render manifest builder, not from the atlas image.

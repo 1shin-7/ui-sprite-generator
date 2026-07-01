@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Slice UI sprite atlas images according to atlas_map.yaml/json."""
+"""Slice UI sprite atlases from per-atlas maps or legacy atlas_map.yaml/json."""
 
 import argparse
 import re
@@ -16,7 +16,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from data_io import DataIOError, load_data
+from atlas_maps import AtlasMapError, load_legacy_atlas_map, load_per_atlas_maps, resolve_path
 
 
 SAFE_FILENAME = re.compile(r"^[A-Za-z0-9_.-]+\.png$")
@@ -24,20 +24,6 @@ SAFE_FILENAME = re.compile(r"^[A-Za-z0-9_.-]+\.png$")
 
 class SliceError(Exception):
     pass
-
-
-def load_json(path):
-    try:
-        return load_data(path)
-    except DataIOError as exc:
-        raise SliceError(str(exc)) from exc
-
-
-def resolve_path(base_dir, value):
-    path = Path(value)
-    if path.is_absolute():
-        return path
-    return base_dir / path
 
 
 def parse_hex_color(value):
@@ -133,20 +119,25 @@ def crop_sprite(image, sprite, bleed):
     return image.crop((x, y, x + w, y + h))
 
 
-def slice_atlases(map_path, out_dir, bg_policy, bg_color_arg, bg_tolerance, bleed, overwrite, connectivity):
-    atlas_map = load_json(map_path)
-    base_dir = map_path.parent
-    out_dir.mkdir(parents=True, exist_ok=True)
-
+def load_atlas_images(atlas_map, base_dir):
     atlases = {}
     for atlas in atlas_map.get("atlases", []):
         atlas_id = atlas.get("id")
         if not atlas_id:
             raise SliceError("atlas missing id")
+        if atlas_id in atlases:
+            raise SliceError(f"duplicate atlas id: {atlas_id}")
         atlas_path = resolve_path(base_dir, atlas.get("file", ""))
         if not atlas_path.exists():
             raise SliceError(f"atlas file not found: {atlas_path}")
         atlases[atlas_id] = Image.open(atlas_path).convert("RGBA")
+    return atlases
+
+
+def slice_atlas_map(atlas_map, base_dir, out_dir, bg_policy, bg_color_arg, bg_tolerance, bleed, overwrite, connectivity):
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    atlases = load_atlas_images(atlas_map, base_dir)
 
     seen_ids = set()
     seen_files = set()
@@ -184,9 +175,27 @@ def slice_atlases(map_path, out_dir, bg_policy, bg_color_arg, bg_tolerance, blee
         print(f"OK {sprite_id} -> {dest}")
 
 
+def slice_legacy_map(map_path, out_dir, bg_policy, bg_color_arg, bg_tolerance, bleed, overwrite, connectivity):
+    try:
+        atlas_map = load_legacy_atlas_map(map_path)
+    except AtlasMapError as exc:
+        raise SliceError(str(exc)) from exc
+    slice_atlas_map(atlas_map, map_path.parent, out_dir, bg_policy, bg_color_arg, bg_tolerance, bleed, overwrite, connectivity)
+
+
+def slice_atlas_dir(atlas_dir, out_dir, bg_policy, bg_color_arg, bg_tolerance, bleed, overwrite, connectivity):
+    try:
+        atlas_map = load_per_atlas_maps(atlas_dir)
+    except AtlasMapError as exc:
+        raise SliceError(str(exc)) from exc
+    slice_atlas_map(atlas_map, atlas_dir, out_dir, bg_policy, bg_color_arg, bg_tolerance, bleed, overwrite, connectivity)
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Slice UI sprite atlases from atlas_map.yaml or atlas_map.json")
-    parser.add_argument("--map", required=True, type=Path, help="Path to atlas_map.yaml or atlas_map.json")
+    parser = argparse.ArgumentParser(description="Slice UI sprite atlases from atlas/*.map.yaml or legacy atlas_map.yaml/json")
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--atlas-dir", type=Path, help="Directory containing atlas images and matching *.map.yaml files")
+    source.add_argument("--map", type=Path, help="Legacy path to atlas_map.yaml or atlas_map.json")
     parser.add_argument("--out", required=True, type=Path, help="Output directory for sliced sprites")
     parser.add_argument("--bg-policy", choices=["keep", "transparentize-border"], default="keep")
     parser.add_argument("--bg-color", default="auto", help="'auto' or #rrggbb for transparentize-border")
@@ -202,16 +211,28 @@ def main():
         parser.error("--bleed must be >= 0")
 
     try:
-        slice_atlases(
-            args.map,
-            args.out,
-            args.bg_policy,
-            args.bg_color,
-            args.bg_tolerance,
-            args.bleed,
-            args.overwrite,
-            args.connectivity,
-        )
+        if args.atlas_dir:
+            slice_atlas_dir(
+                args.atlas_dir,
+                args.out,
+                args.bg_policy,
+                args.bg_color,
+                args.bg_tolerance,
+                args.bleed,
+                args.overwrite,
+                args.connectivity,
+            )
+        else:
+            slice_legacy_map(
+                args.map,
+                args.out,
+                args.bg_policy,
+                args.bg_color,
+                args.bg_tolerance,
+                args.bleed,
+                args.overwrite,
+                args.connectivity,
+            )
     except SliceError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1

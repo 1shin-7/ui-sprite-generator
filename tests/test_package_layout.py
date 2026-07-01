@@ -19,6 +19,8 @@ class PackageLayoutTests(unittest.TestCase):
         self.assertTrue((package / "scripts" / "build_spritesheet_prompt.py").is_file())
         self.assertTrue((package / "scripts" / "build_render_manifest.py").is_file())
         self.assertTrue((package / "scripts" / "data_io.py").is_file())
+        self.assertTrue((package / "scripts" / "atlas_maps.py").is_file())
+        self.assertTrue((package / "schemas" / "per_atlas_map.schema.json").is_file())
 
 
 if __name__ == "__main__":
